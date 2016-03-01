@@ -1,0 +1,227 @@
+
+## The aim of this routine is to create a FAO regional map (and adding a grid too,if needed) for Key Indicators' variables data.
+## In the example here below is indicated the Latin America and Caribbean (LAC) region, but it could be turnes into any other one by simply changing the names. 
+## Same is gor the variables and for the setting of legends, Year and all.
+
+## PART I: SETTING A REGIONAL MAP FOR KEY INDICATORS' VARIABLES  
+library(rgdal)
+library(rgeos)
+library(maptools)
+library(dplyr)
+library(tidyr)
+library(tmap)
+library(sp)
+library(plyr)
+library(dplyr)
+install.packages("data.table")
+install.packages("ggplot2")
+library(data.table)
+library(gisfao)
+library(sp)
+install.packages("devtools")
+devtools::install_github("UNFAOstatistics/gisfao")
+data(fao_world)
+plot(fao_world)
+data(fao_world_centroids)
+plot(fao_world_centroids)
+data(graticule)
+plot(graticule)
+library(ggplot2)
+
+shape <- fao_world[which(fao_world[["LAC"]] == TRUE),]
+plot(shape)
+
+
+
+
+## 01. Selection of the variables I am interested in from KI (Key Indicators) file
+KIgraph_LAC <- KI[, c("Country", "Year", "GDP_percap_USD_FAO")]    
+
+
+
+
+
+## 02. Sum of the GDP valuesaccording both Country and Year
+KIgraph_LAC <- aggregate(data=KIgraph_LAC, GDP_percap_USD_FAO ~ Country + Year, FUN=sum)  
+
+
+
+
+
+## 03. Changing the name of the 'Country' variable from the 'data' object in order to render the two datasets (data and map) mergeable.
+setnames(KIgraph_LAC, "Country", "ADM0_NAME" )     
+
+
+
+
+
+## 04. Changing the name of Countries in the 'data'  datasets whose name does not correspond to the ones in the 'map' datasets in order to render the two datsets mergeable.
+KIgraph_LAC$ADM0_NAME <- mapvalues(KIgraph_LAC$ADM0_NAME, from=c("China, People's Republic of",                 
+                                                                 "Bolivia (Plurinational State of)",
+                                                                 "Democratic People's Republic of Korea",
+                                                                 "Ethiopia PDR",
+                                                                 "Republic of Moldova",
+                                                                 "United Kingdom",
+                                                                 "Venezuela (Bolivarian Republic of)",
+                                                                 "Iran (Islamic Republic of)",
+                                                                 "State of Palestine"),
+                                   to= c("China",
+                                         "Bolivia",
+                                         "Dem People's Rep of Korea",
+                                         "Ethiopia",
+                                         "Moldova, Republic of",
+                                         "U.K. of Great Britain and Northern Ireland",
+                                         "Venezuela",
+                                         "Iran  (Islamic Republic of)",
+                                         "West Bank"))
+
+KIgraph_LAC$ADM0_NAME <- mapvalues(KIgraph_LAC$ADM0_NAME, from="China, Hong Kong SAR",
+                                   to="China")
+
+
+
+
+
+
+# 05. Union of the spatial data with the Key Indicators ones through the variable 'ADM0_NAME'.
+KIgraph_LACMap <- merge(KIgraph_LAC, shape, by="ADM0_NAME", all=T)       
+
+
+
+
+
+# 06. Union with data from the 'FAOSTATgis' package
+shape_Ilio  <- shape                              
+shape_Ilio <- spTransform(shape_Ilio, CRS("+proj=robin"))
+shape_Ilio$id <- rownames(shape_Ilio@data)
+map.points <- fortify(shape_Ilio, region="id")
+shape_Ilio.df <- merge(map.points, shape_Ilio, by = "id")
+KI_map<- KIgraph_LACMap
+names(KI_map)[names(KI_map)=="Reporter_fao_world"]<- c("ADM0_NAME")
+
+KI_map_select <- subset(KI_map, select=c(ADM0_NAME, Year, GDP_percap_USD))
+
+library(tidyr)
+KI_map_select$Year <- paste0("Year_",KI_map_select$Year)
+KI_map_wide <- spread(KI_map_select, Year, GDP_percap_USD)
+
+shape_Ilio.df <- merge(shape_Ilio.df, KI_map_wide, by="ADM0_NAME", all.x=T)
+
+
+
+
+
+# 07. Set up of the map.
+map.df <- shape_Ilio.df
+
+p_LAC <- ggplot(data=map.df, aes(long,lat,group=group))
+p_LAC <- p_LAC + geom_polygon(aes(fill = Year_2013),colour="white",size=.1)
+
+p_LAC <- p_LAC + xlab("Longitude")                                                                                            
+p_LAC <- p_LAC + ylab("Latitude")
+
+
+space <- function(x, ...) {
+  format(x, ..., big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+p_LAC <- p_LAC + scale_fill_gradient(low = "white" , high='#0023a0',  
+                                     labels = space, limits=c(0, 40000), breaks=seq(0, 40000, 5000))
+
+p_LAC
+
+
+
+
+
+
+## PART II: At this point, you have the map. If you want to add a grid, you can use th following code:
+
+
+  
+library(rgdal)
+library(rgeos)
+library(maptools)
+library(dplyr)
+library(tidyr)
+library(tmap)
+library(sp)
+library(plyr)
+library(dplyr)
+install.packages("data.table")
+install.packages("ggplot2")
+library(data.table)
+library(gisfao)
+library(sp)
+install.packages("devtools")
+devtools::install_github("UNFAOstatistics/gisfao")
+data(fao_world)
+plot(fao_world)
+data(fao_world_centroids)
+plot(fao_world_centroids)
+data(graticule)
+plot(graticule)
+library(ggplot2)
+
+
+
+
+
+
+
+
+## 08. Preparation of the map.
+pLAC <- ggplot(data=map.df, aes(long,lat,group=group))                                                                 
+
+pLAC<- pLAC+ geom_polygon(aes(fill = Year_2013),colour="white",size=.1)
+
+pLAC<- pLAC+ xlab("Longitude")                                                                               # Assigning names to x and y axes (optional)                                                                                            
+pLAC<- pLAC+ ylab("Latitude")
+
+
+space <- function(x, ...) {                                                                              # Formatting number with '000  separator.
+  format(x, ..., big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+pLAC<- pLAC+ scale_fill_gradient(low = "white" , high='#FF0000',                                             # Assigning mapLACcolour and interval  breaks=seq(minimum value, maximum value, breaks)         
+                             labels = space, limits=c(0, 40000), breaks=seq(0, 40000, 5000))
+
+
+
+
+
+
+
+## 09. Adding a grid and refining both map colors and legenda. 
+
+library(scales)
+library(grid)
+# Graticule
+grat_robin <- spTransform(graticule, CRS("+proj=robin"))                                                  # Reprojecting graticule
+grat_df_robin <- fortify(grat_robin)
+
+
+pLAC<- pLAC+ geom_path(data = grat_df_robin, aes(long, lat, group = group, fill = NULL),                     # Outlook of the grid. 
+                   linetype = "solid", color = "Dim Grey", size = .5)
+pLAC<- pLAC+ geom_polygon(data = map.df, aes(long,lat),fill=NA,colour="white",size = .7)
+pLAC<- pLAC+ geom_polygon(aes(fill = Year_2013),colour="white",size=.2)
+                                                                                                             # Legenda settings.  
+pLAC<- pLAC+ theme(legend.position = c(0.05,0.05), 
+               legend.justification=c(0,0),
+               legend.key.size=unit(6,'mm'),
+               legend.direction = "vertical",
+               legend.background=element_rect(colour=NA, fill=alpha("white", 2/3)),
+               legend.text=element_text(size=12), 
+               legend.title=element_text(size=12), 
+               title=element_text(size=16), 
+               panel.background = element_blank(), 
+               plot.background = element_blank(),
+               panel.grid.minor = element_blank(),
+               panel.grid.major = element_blank(),
+               axis.ticks = element_blank())
+
+pLAC<- pLAC+ guides(fill = guide_legend(title = "GDP per capita USD - Year: 2013",
+                                    title.position = "top", 
+                                    title.hjust=0))
+
+pLAC
